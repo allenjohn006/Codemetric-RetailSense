@@ -268,8 +268,11 @@ def compute_seasonality_data(df: pd.DataFrame, sales_col: str) -> dict:
     trough_month = monthly_avg.idxmin()
 
     # Build heatmap data: year x month
-    heatmap = df.groupby([df["date"].dt.year, df["date"].dt.month])[sales_col].sum().reset_index()
-    heatmap.columns = ["year", "month", "value"]
+    heatmap_source = df.assign(
+        year=df["date"].dt.year,
+        month=df["date"].dt.month,
+    )
+    heatmap = heatmap_source.groupby(["year", "month"])[sales_col].sum().reset_index(name="value")
     heatmap_list = [
         {
             "year": int(row["year"]),
