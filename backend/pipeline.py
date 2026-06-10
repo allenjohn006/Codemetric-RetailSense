@@ -35,16 +35,20 @@ def auto_detect_and_parse_dates(df: pd.DataFrame) -> pd.DataFrame:
     if "year" in cols_lower and "month" in cols_lower:
         year_col = cols_lower["year"]
         month_col = cols_lower["month"]
-        df["date"] = pd.to_datetime(
-            df[year_col].astype(int).astype(str) + "-" + df[month_col].astype(int).astype(str) + "-01"
-        )
+        # Convert to numeric first, handle NaNs, convert to int then str
+        years = pd.to_numeric(df[year_col], errors="coerce").fillna(0).astype(int)
+        months = pd.to_numeric(df[month_col], errors="coerce").fillna(1).astype(int)
+        
+        # Build date string safely
+        date_str = years.astype(str) + "-" + months.astype(str).str.zfill(2) + "-01"
+        df["date"] = pd.to_datetime(date_str, errors="coerce")
         return df
 
     # Case 2: Look for columns that parse as dates
     for col in df.columns:
         if df[col].dtype == "object":
             try:
-                parsed = pd.to_datetime(df[col], infer_datetime_format=True, errors="coerce")
+                parsed = pd.to_datetime(df[col], errors="coerce", dayfirst=False)
                 if parsed.notna().sum() > len(df) * 0.7:  # >70% valid
                     df["date"] = parsed
                     return df
@@ -88,10 +92,13 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     for col in category_candidates:
         df[col] = df[col].str.title().str.strip()
 
-    # Detect sales-like numeric columns and fill NaN with 0
+    # Detect sales-like numeric columns, strip currency symbols/commas, and fill NaN with 0
     sales_keywords = ["sales", "revenue", "amount", "profit", "quantity", "transfers"]
     for col in df.columns:
         if any(kw in col.lower() for kw in sales_keywords):
+            if df[col].dtype == "object":
+                # Strip currency symbols and commas before conversion
+                df[col] = df[col].astype(str).str.replace(r"[^\d.-]", "", regex=True)
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
     # Drop rows where date is missing
@@ -129,32 +136,39 @@ def detect_category_column(df: pd.DataFrame) -> Optional[str]:
 
 def compute_summary_stats(df: pd.DataFrame, sales_col: str, category_col: Optional[str]) -> dict:
     """Compute high-level summary statistics."""
+    start_date = df["date"].min() if not df.empty else None
+    end_date = df["date"].max() if not df.empty else None
+
     stats = {
         "total_rows": len(df),
         "date_range": {
-            "start": df["date"].min().isoformat(),
-            "end": df["date"].max().isoformat(),
+            "start": start_date.isoformat() if pd.notna(start_date) else None,
+            "end": end_date.isoformat() if pd.notna(end_date) else None,
         },
-        "total_sales": round(float(df[sales_col].sum()), 2),
+        "total_sales": round(float(df[sales_col].sum()), 2) if not df.empty else 0.0,
     }
 
     # Add warehouse sales if present
     cols_lower = {c.lower(): c for c in df.columns}
     if "warehouse sales" in cols_lower:
-        stats["total_warehouse_sales"] = round(float(df[cols_lower["warehouse sales"]].sum()), 2)
+        stats["total_warehouse_sales"] = round(float(df[cols_lower["warehouse sales"]].sum()), 2) if not df.empty else 0.0
 
-    if category_col:
+    if category_col and not df.empty:
         stats["num_categories"] = int(df[category_col].nunique())
-        stats["top_category"] = df.groupby(category_col)[sales_col].sum().idxmax()
+        cat_sums = df.groupby(category_col)[sales_col].sum()
+        stats["top_category"] = str(cat_sums.idxmax()) if not cat_sums.empty else "N/A"
+    elif category_col:
+        stats["num_categories"] = 0
+        stats["top_category"] = "N/A"
 
     # Suppliers
     for name in ["supplier", "vendor", "manufacturer"]:
         if name in cols_lower:
-            stats["num_suppliers"] = int(df[cols_lower[name]].nunique())
+            stats["num_suppliers"] = int(df[cols_lower[name]].nunique()) if not df.empty else 0
             break
 
     # YoY Growth
-    if "date" in df.columns:
+    if "date" in df.columns and not df.empty:
         yearly = df.groupby(df["date"].dt.year)[sales_col].sum()
         if len(yearly) >= 2:
             last_two = yearly.iloc[-2:]
@@ -164,9 +178,15 @@ def compute_summary_stats(df: pd.DataFrame, sales_col: str, category_col: Option
     return stats
 
 
+
 def compute_trend_data(df: pd.DataFrame, sales_col: str) -> dict:
     """Compute sales trends at different granularities."""
     trends = {}
+
+    # Ensure date column is datetime and sorted
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date")
 
     # Monthly trend
     monthly = df.groupby(pd.Grouper(key="date", freq="MS"))[sales_col].sum().reset_index()
@@ -245,8 +265,13 @@ def compute_category_data(df: pd.DataFrame, sales_col: str, category_col: str) -
 
 def compute_seasonality_data(df: pd.DataFrame, sales_col: str) -> dict:
     """Detect seasonality patterns from the data."""
+    # Ensure date column is datetime and sorted
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date")
+
     # Monthly seasonality (average sales per month across years)
-    monthly_avg = df.groupby(df["date"].dt.month)[sales_col].mean()
+    monthly_avg = df.groupby(df["date"].dt.month)[sales_col].mean() if not df.empty else pd.Series(dtype=float)
     month_names = [
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
@@ -257,40 +282,46 @@ def compute_seasonality_data(df: pd.DataFrame, sales_col: str) -> dict:
     ]
 
     # Quarterly seasonality
-    quarterly_avg = df.groupby(df["date"].dt.quarter)[sales_col].mean()
+    quarterly_avg = df.groupby(df["date"].dt.quarter)[sales_col].mean() if not df.empty else pd.Series(dtype=float)
     quarterly_seasonality = [
         {"period": f"Q{int(q)}", "value": round(float(v), 2)}
         for q, v in quarterly_avg.items()
     ]
 
     # Find peak and trough
-    peak_month = monthly_avg.idxmax()
-    trough_month = monthly_avg.idxmin()
+    peak_month = monthly_avg.idxmax() if not monthly_avg.empty else None
+    trough_month = monthly_avg.idxmin() if not monthly_avg.empty else None
 
     # Build heatmap data: year x month
-    heatmap_source = df.assign(
-        year=df["date"].dt.year,
-        month=df["date"].dt.month,
-    )
-    heatmap = heatmap_source.groupby(["year", "month"])[sales_col].sum().reset_index(name="value")
-    heatmap_list = [
-        {
-            "year": int(row["year"]),
-            "month": int(row["month"]),
-            "value": round(float(row["value"]), 2),
-        }
-        for _, row in heatmap.iterrows()
-    ]
+    heatmap_list = []
+    if not df.empty:
+        heatmap_source = df.assign(
+            year=df["date"].dt.year,
+            month=df["date"].dt.month,
+        )
+        heatmap = heatmap_source.groupby(["year", "month"])[sales_col].sum().reset_index(name="value")
+        heatmap_list = [
+            {
+                "year": int(row["year"]),
+                "month": int(row["month"]),
+                "value": round(float(row["value"]), 2),
+            }
+            for _, row in heatmap.iterrows()
+        ]
+
+    peak_name = month_names[int(peak_month) - 1] if peak_month is not None else "N/A"
+    trough_name = month_names[int(trough_month) - 1] if trough_month is not None else "N/A"
 
     return {
         "monthly": monthly_seasonality,
         "quarterly": quarterly_seasonality,
         "heatmap": heatmap_list,
-        "peak_month": month_names[int(peak_month) - 1],
-        "trough_month": month_names[int(trough_month) - 1],
+        "peak_month": peak_name,
+        "trough_month": trough_name,
         "insight": (
-            f"Sales consistently peak in {month_names[int(peak_month) - 1]} "
-            f"and dip in {month_names[int(trough_month) - 1]}."
+            f"Sales consistently peak in {peak_name} "
+            f"and dip in {trough_name}."
+            if peak_month is not None else "No seasonality insights available."
         ),
     }
 

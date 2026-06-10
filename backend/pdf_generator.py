@@ -76,6 +76,15 @@ def _build_styles():
     return styles
 
 
+def safe_format_currency(val):
+    if val is None or not isinstance(val, (int, float)):
+        return "N/A"
+    import math
+    if math.isnan(val):
+        return "N/A"
+    return f"${val:,.0f}"
+
+
 def generate_pdf(
     summary_stats: dict,
     eda_data: dict,
@@ -119,7 +128,7 @@ def generate_pdf(
         ["Total Records", "Total Sales", "Categories", "YoY Growth"],
         [
             f"{summary_stats.get('total_rows', 'N/A'):,}" if isinstance(summary_stats.get('total_rows'), (int, float)) else "N/A",
-            f"${summary_stats.get('total_sales', 0):,.0f}",
+            safe_format_currency(summary_stats.get('total_sales')),
             str(summary_stats.get('num_categories', 'N/A')),
             f"{summary_stats.get('yoy_growth', 'N/A')}%" if summary_stats.get('yoy_growth') is not None else "N/A",
         ],
@@ -145,8 +154,12 @@ def generate_pdf(
     # Date range
     date_range = summary_stats.get("date_range", {})
     if date_range:
+        start_date = date_range.get('start')
+        end_date = date_range.get('end')
+        start_str = start_date[:10] if isinstance(start_date, str) else "N/A"
+        end_str = end_date[:10] if isinstance(end_date, str) else "N/A"
         elements.append(Paragraph(
-            f"<b>Analysis Period:</b> {date_range.get('start', 'N/A')[:10]} to {date_range.get('end', 'N/A')[:10]}",
+            f"<b>Analysis Period:</b> {start_str} to {end_str}",
             styles["InsightText"]
         ))
     elements.append(Spacer(1, 12))
@@ -164,7 +177,7 @@ def generate_pdf(
         monthly = seasonality_data.get("monthly", [])
         if monthly:
             header = ["Month", "Avg Sales"]
-            rows = [[m["period"], f"${m['value']:,.0f}"] for m in monthly]
+            rows = [[m["period"], safe_format_currency(m["value"])] for m in monthly]
             all_rows = [header] + rows
 
             season_table = Table(all_rows, colWidths=[160, 160])
@@ -191,7 +204,7 @@ def generate_pdf(
         rows = [
             [
                 c["name"],
-                f"${c['total_sales']:,.0f}",
+                safe_format_currency(c["total_sales"]),
                 f"{c['growth_rate']}%" if c.get("growth_rate") is not None else "N/A",
             ]
             for c in category_data["top_5"]
@@ -227,9 +240,9 @@ def generate_pdf(
         rows = [
             [
                 f["date"][:7],
-                f"${f['forecast']:,.0f}",
-                f"${f.get('lower_bound', 0):,.0f}",
-                f"${f.get('upper_bound', 0):,.0f}",
+                safe_format_currency(f["forecast"]),
+                safe_format_currency(f.get('lower_bound')),
+                safe_format_currency(f.get('upper_bound')),
             ]
             for f in forecast_data["forecast"][:12]
         ]
@@ -255,14 +268,14 @@ def generate_pdf(
         elements.append(Paragraph("Actionable Insights & Recommendations", styles["SectionHeader"]))
 
         for i, item in enumerate(insights["items"], 1):
-            severity_color = {
-                "success": BRAND_SUCCESS,
-                "warning": BRAND_WARNING,
-                "info": BRAND_PRIMARY,
-            }.get(item.get("severity", "info"), BRAND_PRIMARY)
+            severity_hex = {
+                "success": "#00C853",
+                "warning": "#FF6D00",
+                "info": "#6C63FF",
+            }.get(item.get("severity", "info"), "#6C63FF")
 
             elements.append(Paragraph(
-                f"<font color='{severity_color}'><b>{i}. {item['title']}</b></font>",
+                f"<font color='{severity_hex}'><b>{i}. {item['title']}</b></font>",
                 styles["InsightText"]
             ))
             elements.append(Paragraph(item["description"], styles["InsightText"]))

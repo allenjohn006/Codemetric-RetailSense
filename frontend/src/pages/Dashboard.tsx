@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 export default function Dashboard() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
   const [currentDatasetId, setCurrentDatasetId] = useState<string | null>(null);
 
   const { data: user } = useQuery({
@@ -70,9 +71,26 @@ export default function Dashboard() {
     window.location.href = "/login";
   };
 
-  const handleDownload = () => {
-    if (currentDatasetId) {
-      window.open(`/api/reports/${currentDatasetId}/download`, "_blank");
+  const handleDownload = async () => {
+    if (!currentDatasetId) return;
+    setDownloading(true);
+    try {
+      // Use Axios so the JWT token is sent in the Authorization header
+      const response = await api.get(`/reports/${currentDatasetId}/download`, {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `RetailSense_Report_${currentDatasetId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to download report.");
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -139,9 +157,9 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold tracking-tight">Analysis Overview</h2>
               {statusData?.status === "done" && (
-                <Button onClick={handleDownload} className="shadow-lg shadow-primary/20">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download PDF Report
+                <Button onClick={handleDownload} disabled={downloading} className="shadow-lg shadow-primary/20">
+                  {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                  {downloading ? "Downloading..." : "Download PDF Report"}
                 </Button>
               )}
             </div>
@@ -183,9 +201,9 @@ export default function Dashboard() {
                   <p className="text-muted-foreground max-w-md mx-auto mb-6">
                     We've processed your data, generated time-series forecasts, and compiled actionable insights into a professional PDF document.
                   </p>
-                  <Button onClick={handleDownload} size="lg">
-                    <Download className="w-5 h-5 mr-2" />
-                    Download Executive Report
+                  <Button onClick={handleDownload} disabled={downloading} size="lg">
+                    {downloading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Download className="w-5 h-5 mr-2" />}
+                    {downloading ? "Downloading..." : "Download Executive Report"}
                   </Button>
                </div>
             )}

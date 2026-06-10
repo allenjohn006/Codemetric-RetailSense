@@ -20,6 +20,8 @@ def moving_average_forecast(
     monthly = df.groupby(pd.Grouper(key="date", freq="MS"))[sales_col].sum().reset_index()
     monthly.columns = ["date", "value"]
     monthly = monthly.sort_values("date")
+    # Strip timezone info to avoid issues with DateOffset
+    monthly["date"] = monthly["date"].dt.tz_localize(None) if monthly["date"].dt.tz is not None else monthly["date"]
 
     if len(monthly) < 3:
         return []
@@ -58,6 +60,9 @@ def prophet_forecast(
         monthly = df.groupby(pd.Grouper(key="date", freq="MS"))[sales_col].sum().reset_index()
         monthly.columns = ["ds", "y"]
         monthly = monthly.sort_values("ds")
+        # Prophet requires timezone-naive datetime
+        if monthly["ds"].dt.tz is not None:
+            monthly["ds"] = monthly["ds"].dt.tz_localize(None)
 
         if len(monthly) < 6:
             logger.warning("Not enough data points for Prophet. Need at least 6 months.")
