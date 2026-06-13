@@ -4,12 +4,16 @@ import { useDropzone } from "react-dropzone";
 import { UploadCloud, File, AlertCircle, CheckCircle2, Loader2, LogOut, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import ResultsDashboard from "@/components/ResultsDashboard";
 
 export default function Dashboard() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [currentDatasetId, setCurrentDatasetId] = useState<string | null>(null);
+  // ── new: interactive dashboard state ──────────────────────────────────────
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const { data: user } = useQuery({
     queryKey: ["user"],
@@ -50,6 +54,22 @@ export default function Dashboard() {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setCurrentDatasetId(res.data.id);
+
+      // ── call /api/analyze for the interactive on-screen dashboard ────────
+      setAnalyzing(true);
+      try {
+        const singleFile = acceptedFiles[0];
+        const analyzeForm = new FormData();
+        analyzeForm.append("file", singleFile);
+        const analyzeRes = await api.post("/analyze", analyzeForm, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        setAnalysisResult(analyzeRes.data);
+      } catch {
+        // non-fatal: PDF pipeline continues even if analyze fails
+      } finally {
+        setAnalyzing(false);
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to upload files.");
     } finally {
@@ -206,6 +226,21 @@ export default function Dashboard() {
                     {downloading ? "Downloading..." : "Download Executive Report"}
                   </Button>
                </div>
+            )}
+
+            {/* ── interactive dashboard (renders after /api/analyze returns) ── */}
+            {analyzing && (
+              <div className="flex items-center justify-center gap-3 py-8 text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-sm">Building interactive dashboard…</span>
+              </div>
+            )}
+            {!analyzing && analysisResult && (
+              <ResultsDashboard
+                data={analysisResult}
+                onExportPDF={handleDownload}
+                exporting={downloading}
+              />
             )}
           </div>
         )}

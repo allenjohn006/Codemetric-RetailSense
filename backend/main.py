@@ -7,7 +7,7 @@ from auth import hash_password
 from config import settings
 from database import engine, Base, SessionLocal
 from models import User
-from routers import auth_router, upload_router, report_router
+from routers import auth_router, upload_router, report_router, analyze_router
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -56,6 +56,7 @@ app.add_middleware(
 app.include_router(auth_router.router)
 app.include_router(upload_router.router)
 app.include_router(report_router.router)
+app.include_router(analyze_router.router)
 
 
 @app.get("/health")
