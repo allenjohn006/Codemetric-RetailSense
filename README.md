@@ -1,10 +1,10 @@
-# 📊 RetailSense
+#  RetailSense Task-3 (Retail Sales Analysis & Forecasting)
 
 AI-powered retail analytics & demand forecasting platform. Drag-and-drop CSV upload dashboard that automatically cleans data, generates a full Exploratory Data Analysis (EDA) report, detects seasonality patterns, and forecasts sales using advanced time series models.
 
 ---
 
-## ✨ Features
+##  Features
 
 - **Multi-File CSV Upload & Merging**: Drag-and-drop one or multiple CSV sales exports (up to 500MB total). The system auto-merges, standardizes column formats, and cleans string values/whitespace.
 - **Smart Data Cleaning**: Automatic type coercion, parsing of explicit `YEAR`/`MONTH` or implicit date columns, removal of currency symbols or thousands separators, and missing value cleanup.
@@ -15,11 +15,11 @@ AI-powered retail analytics & demand forecasting platform. Drag-and-drop CSV upl
 
 ---
 
-## 🛠️ Architecture & Tech Stack
+##  Architecture & Tech Stack
 
 RetailSense is built using a modern, loosely coupled stack optimized for data processing and asynchronous execution:
 
-### 💻 Frontend
+###  Frontend
 | Technology | Purpose |
 |---|---|
 | **React 18 + Vite + TypeScript** | Core framework and build tooling |
@@ -29,7 +29,7 @@ RetailSense is built using a modern, loosely coupled stack optimized for data pr
 | **Axios** | HTTP client with auth token injection |
 | **react-dropzone** | CSV drag-and-drop upload |
 
-### ⚙️ Backend
+###  Backend
 | Technology | Purpose |
 |---|---|
 | **FastAPI** | High-performance async Python API |
@@ -42,7 +42,7 @@ RetailSense is built using a modern, loosely coupled stack optimized for data pr
 | **ReportLab** | Professional PDF generation |
 | **python-jose + passlib** | JWT auth and password hashing |
 
-### 🐳 Infrastructure
+###  Infrastructure
 | Technology | Purpose |
 |---|---|
 | **Docker + Docker Compose** | Containerized multi-service orchestration |
@@ -51,7 +51,7 @@ RetailSense is built using a modern, loosely coupled stack optimized for data pr
 
 ---
 
-## 🚀 Quick Start (Docker Compose — Recommended)
+##  Quick Start (Docker Compose — Recommended)
 
 The easiest way to run the entire enterprise stack (PostgreSQL, Redis, Celery Worker, FastAPI, and React Frontend) in one command:
 
@@ -67,7 +67,7 @@ docker-compose up --build -d
 | **Backend API** | http://localhost:8000 |
 | **API Interactive Docs** | http://localhost:8000/docs |
 
-### 🔑 Demo Account
+###  Demo Account
 A demo account is automatically seeded into the database on first startup:
 - **Email**: `demo@retailsense.io`
 - **Password**: `Demo@RetailSense2024`
@@ -79,7 +79,7 @@ docker-compose down
 
 ---
 
-## 💻 Running Locally (Manual Setup)
+##  Running Locally (Manual Setup)
 
 If you prefer to run the components directly on your system without Docker:
 
@@ -132,7 +132,7 @@ Open [http://localhost:5173](http://localhost:5173) to view the application.
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 RetailSense/
@@ -171,7 +171,7 @@ RetailSense/
 
 ---
 
-## 📋 Supported CSV Formats
+##  Supported CSV Formats
 
 The pipeline auto-detects and handles:
 - **Date columns**: Any column named `date`, `order_date`, `transaction_date`, `ship_date`, etc.
@@ -180,8 +180,3 @@ The pipeline auto-detects and handles:
 - **Category columns**: Any column named `item type`, `category`, `product_category`, or `sub-category`.
 - **Currency formats**: Values prefixed with `$`, `€`, `£` or containing commas are automatically stripped and converted to numeric.
 
----
-
-## 📄 License
-
-MIT License
